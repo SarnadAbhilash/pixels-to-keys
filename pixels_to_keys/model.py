@@ -4,7 +4,7 @@ import torch.nn as nn
 STACK = 4  # frames per observation; one frame cannot show speed
 
 
-class DinoNet(nn.Module):
+class PolicyNet(nn.Module):
     """(B, 4, 40, 160) frames in [0, 1] -> (B, 2) logits for [no-op, jump]."""
 
     def __init__(self):

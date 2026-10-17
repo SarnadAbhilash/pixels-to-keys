@@ -11,7 +11,7 @@ Full demo: [docs/demo.mp4](docs/demo.mp4)
 - **Data:** 30 rounds of human play (~24 min, 28k frames) recorded at 20 Hz. Only 4% of frames contain a jump.
 - **Policy:** a small CNN (3 conv layers, ~220k parameters) over the last 4 frames. Output: jump or no-op. Inference takes ~1 ms on a laptop.
 - **Training:** behavior cloning with weighted cross-entropy. The label for frames `t-3..t` is the key pressed right after `t`. Train/val are split by round.
-- **Evaluation:** a deterministic copy of the game ([`env.py`](pixels_to_keys/env.py)) with a controlled clock and seeded courses. Every model plays the same 50 courses and gets the same score on any machine.
+- **Evaluation:** a deterministic copy of the game ([`envs/dino.py`](pixels_to_keys/envs/dino.py)) with a controlled clock and seeded courses. Every model plays the same 50 courses and gets the same score on any machine.
 
 ## Results
 
@@ -49,33 +49,36 @@ pip install -r requirements.txt
 python -m playwright install chromium
 
 # evaluate the included checkpoint on 50 fixed courses
-python -m pixels_to_keys.evaluate --model checkpoints/model.pt --games 50
+python -m pixels_to_keys.evaluate --game dino --model checkpoints/dino.pt
 
 # record your own play, train, evaluate
-python -m pixels_to_keys.record --out data
-python -m pixels_to_keys.train --data data --out checkpoints/model.pt --jump-weight 5
-python -m pixels_to_keys.evaluate --model checkpoints/model.pt --watch
+python -m pixels_to_keys.record --game dino --out data/dino
+python -m pixels_to_keys.train --data data/dino --out checkpoints/dino.pt --jump-weight 5
+python -m pixels_to_keys.evaluate --game dino --watch
 
 # compare human vs agent jump timing
-python -m pixels_to_keys.analyze --human data --agent runs/eval/games --plot runs/jump_timing.png
+python -m pixels_to_keys.analyze --human data/dino --agent runs/dino/games --plot runs/jump_timing.png
 ```
 
 ## Project layout
 
 ```
 pixels_to_keys/
-  browser.py    serve the game, read frames, key presses and game state
-  env.py        deterministic environment: controlled clock, seeded courses
-  model.py      CNN policy
-  record.py     record human demonstrations
-  train.py      behavior cloning
-  evaluate.py   fixed-seed evaluation, per-game rollouts and crash clips
-  analyze.py    jump-timing analysis (human vs agent)
-game/           copy of Chrome's offline Dino game
-checkpoints/    trained model (jump weight 5)
-docs/           demo and figures
+  envs/dino.py     deterministic Dino environment: controlled clock, seeded courses
+  envs/flappy.py   deterministic Flappy Bird environment
+  browser.py       serve the Dino game, read frames, key presses and game state
+  model.py         CNN policy
+  record.py        record human demonstrations
+  train.py         behavior cloning (optionally from pretrained weights)
+  evaluate.py      fixed-seed evaluation, per-game rollouts and crash clips
+  analyze.py       jump-timing analysis (human vs agent)
+games/dino/        Chrome's offline Dino game
+games/flappy/      FlapPyBird game code and sprites
+checkpoints/       trained models
+docs/              demo and figures
 ```
 
 ## Credits
 
-The game is a copy of Chrome's offline Dino game from [wayou/t-rex-runner](https://github.com/wayou/t-rex-runner), BSD-3-Clause ([game/LICENSE](game/LICENSE)).
+- Dino: copy of Chrome's offline Dino game from [wayou/t-rex-runner](https://github.com/wayou/t-rex-runner), BSD-3-Clause ([games/dino/LICENSE](games/dino/LICENSE)).
+- Flappy Bird: [FlapPyBird](https://github.com/sourabhv/FlapPyBird), MIT ([games/flappy/LICENSE](games/flappy/LICENSE)).

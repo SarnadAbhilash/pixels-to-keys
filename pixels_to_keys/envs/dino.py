@@ -12,7 +12,7 @@ Same model + same seeds -> same scores, on any machine.
 """
 from playwright.sync_api import Browser
 
-from .browser import DEFAULT_PORT, serve_game, to_frame
+from ..browser import DEFAULT_PORT, serve_game, to_frame
 
 FRAMES_PER_STEP = 3  # 3 frames at 60 fps = 50 ms, matching the 20 Hz recording rate
 DINO_X = 24          # dino x position in normal play (measured from recordings)

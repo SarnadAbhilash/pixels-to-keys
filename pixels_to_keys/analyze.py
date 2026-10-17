@@ -1,6 +1,6 @@
-"""Jump timing: how far away the cactus is when the human vs the agent jumps.
+"""Dino jump timing: how far away the cactus is when the human vs the agent jumps.
 
-    python -m pixels_to_keys.analyze --human data --agent runs/eval/games --plot runs/jump_timing.png
+    python -m pixels_to_keys.analyze --human data/dino --agent runs/dino/games --plot runs/jump_timing.png
 
 Distances are measured from pixels only (160x40 frames), so human recordings and
 agent rollouts are measured the same way. Larger distance = earlier jump.
@@ -80,8 +80,8 @@ def plot(results, path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--human", type=Path, default=Path("data"))
-    ap.add_argument("--agent", type=Path, default=Path("runs/eval/games"))
+    ap.add_argument("--human", type=Path, default=Path("data/dino"))
+    ap.add_argument("--agent", type=Path, default=Path("runs/dino/games"))
     ap.add_argument("--plot", type=Path, default=None)
     args = ap.parse_args()
 

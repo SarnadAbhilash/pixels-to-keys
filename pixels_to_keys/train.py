@@ -1,6 +1,7 @@
-"""Behavior cloning: train DinoNet to predict the human's next key press.
+"""Behavior cloning: train the policy to predict the human's next key press.
 
-    python -m pixels_to_keys.train --data data --out checkpoints/model.pt
+    python -m pixels_to_keys.train --data data/dino --out checkpoints/dino.pt
+    python -m pixels_to_keys.train --data data/flappy --init checkpoints/dino.pt --out checkpoints/flappy_ft.pt
 """
 import argparse
 import random
@@ -10,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from .model import STACK, DinoNet
+from .model import STACK, PolicyNet
 
 
 def make_pairs(path):
@@ -56,8 +57,12 @@ def evaluate(model, X, Y, device):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--data", type=Path, default=Path("data"))
-    ap.add_argument("--out", type=Path, default=Path("checkpoints/model.pt"))
+    ap.add_argument("--data", type=Path, default=Path("data/dino"))
+    ap.add_argument("--out", type=Path, default=Path("checkpoints/dino.pt"))
+    ap.add_argument("--init", type=Path, default=None, help="start from these weights")
+    ap.add_argument("--freeze-conv", action="store_true", help="train only the head")
+    ap.add_argument("--max-frames", type=int, default=None,
+                    help="use only the first training rounds up to this many frames")
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -74,14 +79,30 @@ def main():
     files = sorted(args.data.glob("round_*.npz"))
     random.shuffle(files)
     n_val = max(1, len(files) // 5)
-    X_tr, Y_tr = load_split(files[n_val:])
-    X_val, Y_val = load_split(files[:n_val])
+    val_files, train_files = files[:n_val], files[n_val:]
+    if args.max_frames:
+        # The validation rounds stay fixed; only the training subset shrinks.
+        chosen, total = [], 0
+        for f in train_files:
+            if total >= args.max_frames:
+                break
+            chosen.append(f)
+            total += len(np.load(f)["actions"])
+        train_files = chosen
+    X_tr, Y_tr = load_split(train_files)
+    X_val, Y_val = load_split(val_files)
     print(f"train {len(Y_tr)} ({Y_tr.float().mean():.1%} jump) | "
           f"val {len(Y_val)} ({Y_val.float().mean():.1%} jump)")
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
-    model = DinoNet().to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+    model = PolicyNet()
+    if args.init:
+        model.load_state_dict(torch.load(args.init, map_location="cpu"))
+    if args.freeze_conv:
+        for p in model.conv.parameters():
+            p.requires_grad = False
+    model = model.to(device)
+    opt = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=args.lr)
     loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([1.0, args.jump_weight], device=device))
 
     for epoch in range(1, args.epochs + 1):
