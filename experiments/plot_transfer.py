@@ -61,7 +61,11 @@ def main():
     x = [minutes[s] for s in sizes]
     for k, label in METHODS.items():
         means = [np.mean(results[k][s]) if results[k].get(s) else np.nan for s in sizes]
-        ax.plot(x, means, marker="o", lw=2, ms=7, color=COLORS[k], label=label)
+        ax.plot(x, means, marker="o", lw=2, ms=7, color=COLORS[k],
+                label=f"{label} (mean of {max(len(results[k].get(s, [])) for s in sizes)} runs)")
+        for xi, s in zip(x, sizes):  # each training run as a small dot
+            runs = results[k].get(s, [])
+            ax.scatter([xi] * len(runs), runs, s=14, color=COLORS[k], alpha=0.45, zorder=3)
     ax.axhline(np.mean(zero), color="#52514e", ls="--", lw=1)
     ax.text(x[-1], np.mean(zero), " Dino policy, no Flappy data", va="bottom", ha="right",
             fontsize=9, color="#52514e")
