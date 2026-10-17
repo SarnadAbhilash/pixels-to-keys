@@ -39,7 +39,7 @@ for size in $SIZES; do
       [[ $size != 0 ]] && extra+=(--max-frames "$size")
       echo "== $name"
       python -m pixels_to_keys.train --data "$DATA" --out "$OUT/models/$name.pt" \
-          --seed "$seed" "${extra[@]}" | tail -n 2
+          --seed "$seed" ${extra[@]+"${extra[@]}"} | tail -n 2
       python -m pixels_to_keys.evaluate --game flappy --model "$OUT/models/$name.pt" \
           --games "$GAMES" --max-steps "$MAX_STEPS" --out "$OUT/$name" | tail -n 1
     done
