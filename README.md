@@ -1,6 +1,6 @@
 # pixels-to-keys
 
-A Chrome Dino agent that acts from raw screen pixels. It sees 160×40 grayscale frames, presses keys, and has no access to the game's internal state.
+A Chrome Dino agent that acts from raw screen pixels, and a test of whether what it learned transfers to Flappy Bird. The agent sees 160×40 grayscale frames, presses one key, and has no access to game state.
 
 ![demo](docs/demo.gif)
 
@@ -41,6 +41,35 @@ Inverse-frequency weighting pushes the decision threshold down, so the policy fi
 
 Remaining failures with weight 5: occasional early jumps on wide groups at low speed, and late jumps at high speed. Human data at high speed is scarce (~15% of jumps).
 
+## Transfer to Flappy Bird
+
+Does the Dino policy help on a game it has never seen? Flappy Bird ([FlapPyBird](https://github.com/sourabhv/FlapPyBird), unmodified) uses the same observation format and the same single action, but the dynamics are opposite: in Dino, doing nothing is safe; in Flappy Bird, doing nothing means falling.
+
+Setup: 17 minutes of my own Flappy Bird play (126 rounds, median 4 pipes). For each amount of training data, three models are trained and evaluated on the same 50 fixed courses:
+
+- **From scratch**
+- **From the Dino policy, fine-tuned:** all weights updated
+- **From the Dino policy, conv layers frozen:** only the head is trained
+
+![transfer](docs/flappy_transfer.png)
+
+| Training data | From scratch | From Dino, fine-tuned | From Dino, conv frozen |
+|---|---|---|---|
+| none | – | 0.0 | – |
+| 2 min | 1.6 | **3.5** | 1.2 |
+| 5 min | 7.0 | 10.0 | 0.8 |
+| 10 min | 13.4 | 9.2 | 1.6 |
+| 14 min (all) | 12.1 | 14.2 | – |
+
+Mean pipes passed, averaged over 5 training runs (2 for frozen).
+
+- **Zero-shot, the Dino policy scores 0.** It waits for an obstacle, and the bird falls.
+- **With 2 minutes of data, starting from Dino roughly doubles the score.** Its worst run beats 3 of 5 scratch runs (one-sided Mann-Whitney p = 0.016).
+- **With 5 minutes or more, there is no measurable difference** (p = 0.69 at each size). Run-to-run variance is large: the same setup ranges from 4 to 38.
+- **Frozen Dino features do not work.** The visual features have to be retrained to see pipes and gaps.
+
+The Dino policy is not useful on Flappy Bird as it is, but it is a better starting point when new data is scarce.
+
 ## Usage
 
 ```bash
@@ -56,7 +85,11 @@ python -m pixels_to_keys.record --game dino --out data/dino
 python -m pixels_to_keys.train --data data/dino --out checkpoints/dino.pt --jump-weight 5
 python -m pixels_to_keys.evaluate --game dino --watch
 
-# compare human vs agent jump timing
+# Flappy Bird: record, then run the transfer experiment
+python -m pixels_to_keys.record --game flappy --out data/flappy
+experiments/flappy_transfer.sh data/flappy
+
+# compare human vs agent jump timing (Dino)
 python -m pixels_to_keys.analyze --human data/dino --agent runs/dino/games --plot runs/jump_timing.png
 ```
 
@@ -75,6 +108,7 @@ pixels_to_keys/
 games/dino/        Chrome's offline Dino game
 games/flappy/      FlapPyBird game code and sprites
 checkpoints/       trained models
+experiments/       transfer experiment script and plot
 docs/              demo and figures
 ```
 
