@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+
+# Local data and outputs
+data/
+runs/
+notes/
+_archive/
+
+# Checkpoints (only the released one is tracked)
+*.pt
+!checkpoints/model.pt
