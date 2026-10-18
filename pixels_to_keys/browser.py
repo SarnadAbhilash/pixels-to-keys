@@ -3,7 +3,7 @@ import base64
 import functools
 import io
 import threading
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +36,7 @@ def serve_game(port: int = DEFAULT_PORT) -> str:
     """
     handler = functools.partial(_QuietHandler, directory=str(GAME_DIR))
     try:
-        server = HTTPServer(("localhost", port), handler)
+        server = ThreadingHTTPServer(("localhost", port), handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
     except OSError:
         pass
