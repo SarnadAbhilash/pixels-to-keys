@@ -82,8 +82,10 @@ class DinoEnv:
         running until it reached that speed.
         """
         self.page.goto(f"{self.url}?seed={seed}")
-        self.page.wait_for_function("typeof Runner !== 'undefined' && Runner.instance_",
-                                    polling=50)
+        # Runner exists before its sprites load; tRex appears once the game is set up.
+        self.page.wait_for_function(
+            "typeof Runner !== 'undefined' && Runner.instance_ && Runner.instance_.tRex",
+            polling=50)
         self.page.evaluate(_START)
         self.page.keyboard.press("Space")          # the game starts with one jump
         self.page.evaluate(_FINISH_INTRO, DINO_X)

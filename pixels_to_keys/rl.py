@@ -50,7 +50,13 @@ def worker(rank, args, weights_q, out_q):
             seed = SEED_BASE + rank * 1_000_000 + episode
             episode += 1
             speed = np.random.default_rng(seed).uniform(6.0, 13.0)
-            frame = env.reset(seed, start_speed=speed)
+            for attempt in range(3):  # a page load can fail when many browsers start at once
+                try:
+                    frame = env.reset(seed, start_speed=speed)
+                    break
+                except Exception:
+                    if attempt == 2:
+                        raise
             recent = deque([frame], maxlen=STACK)
             for _ in range(STACK - 1):  # as in evaluation: no-op until 4 frames are seen
                 frame, _, _ = env.step(False)
