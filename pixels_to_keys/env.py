@@ -10,9 +10,11 @@ load and window focus. This environment takes control of the page:
 
 Same model + same seeds -> same scores, on any machine.
 """
+import mimetypes
+
 from playwright.sync_api import Browser
 
-from .browser import DEFAULT_PORT, serve_game, to_frame
+from .browser import GAME_DIR, to_frame
 
 FRAMES_PER_STEP = 3  # 3 frames at 60 fps = 50 ms, matching the 20 Hz recording rate
 DINO_X = 24          # dino x position in normal play (measured from recordings)
@@ -69,10 +71,30 @@ _FAST_FORWARD = """speed => {
 }"""
 
 
+GAME_URL = "http://dino.local/index.html"  # never hits the network: served by _serve
+
+
+def _serve(route):
+    """Answer the page's requests from the game folder, inside Playwright (no web server)."""
+    path = GAME_DIR / route.request.url.split("dino.local/", 1)[1].split("?", 1)[0]
+    if path.is_file():
+        route.fulfill(body=path.read_bytes(),
+                      content_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+    else:
+        route.fulfill(status=404)
+
+
 class DinoEnv:
-    def __init__(self, browser: Browser, port: int = DEFAULT_PORT):
-        self.url = serve_game(port)
-        self.page = browser.new_page()
+    def __init__(self, browser: Browser):
+        self.browser = browser
+        self.page = None
+        self._new_page()
+
+    def _new_page(self):
+        if self.page:
+            self.page.close()
+        self.page = self.browser.new_page()
+        self.page.route("http://dino.local/**", _serve)
         self.page.add_init_script(_CONTROL)
 
     def reset(self, seed: int, start_speed: float = None):
@@ -81,11 +103,20 @@ class DinoEnv:
         start_speed (training only) starts the game as if it had already been
         running until it reached that speed.
         """
-        self.page.goto(f"{self.url}?seed={seed}")
+        for attempt in range(3):
+            try:
+                return self._reset(seed, start_speed)
+            except Exception:
+                if attempt == 2:
+                    raise
+                self._new_page()  # a stuck page cannot be reused
+
+    def _reset(self, seed, start_speed):
+        self.page.goto(f"{GAME_URL}?seed={seed}")
         # Runner exists before its sprites load; tRex appears once the game is set up.
         self.page.wait_for_function(
             "typeof Runner !== 'undefined' && Runner.instance_ && Runner.instance_.tRex",
-            polling=50)
+            polling=50, timeout=10_000)
         self.page.evaluate(_START)
         self.page.keyboard.press("Space")          # the game starts with one jump
         self.page.evaluate(_FINISH_INTRO, DINO_X)

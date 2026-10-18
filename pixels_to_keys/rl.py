@@ -42,7 +42,7 @@ def worker(rank, args, weights_q, out_q):
     policy = PolicyNet()
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        env = DinoEnv(browser, port=args.port)
+        env = DinoEnv(browser)
         episode = 0
 
         def new_game():
@@ -50,13 +50,7 @@ def worker(rank, args, weights_q, out_q):
             seed = SEED_BASE + rank * 1_000_000 + episode
             episode += 1
             speed = np.random.default_rng(seed).uniform(6.0, 13.0)
-            for attempt in range(3):  # a page load can fail when many browsers start at once
-                try:
-                    frame = env.reset(seed, start_speed=speed)
-                    break
-                except Exception:
-                    if attempt == 2:
-                        raise
+            frame = env.reset(seed, start_speed=speed)
             recent = deque([frame], maxlen=STACK)
             for _ in range(STACK - 1):  # as in evaluation: no-op until 4 frames are seen
                 frame, _, _ = env.step(False)
@@ -107,6 +101,18 @@ def advantages(rew, done, values, last_value, gamma, lam):
     return adv, adv + values
 
 
+def collect(out_q, procs):
+    """Next rollout from any worker; stop instead of waiting forever if one has died."""
+    import queue
+    while True:
+        try:
+            return out_q.get(timeout=5)
+        except queue.Empty:
+            dead = [i for i, p in enumerate(procs) if not p.is_alive()]
+            if dead:
+                raise SystemExit(f"worker {dead} stopped; see its error above")
+
+
 def batched(net, x, device, size=1024):
     with torch.no_grad():
         return torch.cat([net(torch.from_numpy(x[i:i + size]).float().to(device) / 255.0).cpu()
@@ -134,11 +140,8 @@ def main():
     ap.add_argument("--value-warmup", type=int, default=5,
                     help="iterations that train only the value net")
     ap.add_argument("--save-every", type=int, default=10)
-    ap.add_argument("--port", type=int, default=8765)
     args = ap.parse_args()
 
-    from .browser import serve_game
-    serve_game(args.port)  # one server for all workers
     args.out.mkdir(parents=True, exist_ok=True)
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -167,7 +170,7 @@ def main():
         state = {k: v.cpu() for k, v in policy.state_dict().items()}
         for q in weight_qs:
             q.put(state)
-        parts = [out_q.get() for _ in procs]
+        parts = [collect(out_q, procs) for _ in procs]
 
         obs, act, logp_old, adv, ret, scores = [], [], [], [], [], []
         for part in parts:
