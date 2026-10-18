@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-GAME_DIR = Path(__file__).resolve().parent.parent / "games" / "dino"
+GAME_DIR = Path(__file__).resolve().parent.parent / "game"
 FRAME_SIZE = (160, 40)  # (width, height) of every observation
 DEFAULT_PORT = 8765
 

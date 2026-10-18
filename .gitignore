@@ -14,4 +14,4 @@ _archive/
 
 # Checkpoints (only the released one is tracked)
 *.pt
-!checkpoints/model.pt
+!checkpoints/dino.pt

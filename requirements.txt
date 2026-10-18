@@ -1,5 +1,4 @@
 playwright>=1.40
-pygame>=2.5
 torch>=2.1
 numpy>=1.24
 pillow>=10.0
