@@ -61,20 +61,34 @@ _FINISH_INTRO = """dinoX => {
 }"""
 
 
+_FAST_FORWARD = """speed => {
+    const r = Runner.instance_;
+    const n = (speed - r.config.SPEED) / r.config.ACCELERATION;  // frames to reach this speed
+    r.currentSpeed = speed;
+    r.distanceRan = r.config.SPEED * n + r.config.ACCELERATION * n * n / 2;
+}"""
+
+
 class DinoEnv:
     def __init__(self, browser: Browser, port: int = DEFAULT_PORT):
         self.url = serve_game(port)
         self.page = browser.new_page()
         self.page.add_init_script(_CONTROL)
 
-    def reset(self, seed: int):
-        """Load a fresh game for this seed and return the first frame."""
+    def reset(self, seed: int, start_speed: float = None):
+        """Load a fresh game for this seed and return the first frame.
+
+        start_speed (training only) starts the game as if it had already been
+        running until it reached that speed.
+        """
         self.page.goto(f"{self.url}?seed={seed}")
         self.page.wait_for_function("typeof Runner !== 'undefined' && Runner.instance_",
                                     polling=50)
         self.page.evaluate(_START)
         self.page.keyboard.press("Space")          # the game starts with one jump
         self.page.evaluate(_FINISH_INTRO, DINO_X)
+        if start_speed:
+            self.page.evaluate(_FAST_FORWARD, start_speed)
         frame, _, _ = self._observe()
         return frame
 
