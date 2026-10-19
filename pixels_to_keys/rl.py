@@ -137,6 +137,8 @@ def main():
                     help="exploration: lower = closer to always picking the likelier key")
     ap.add_argument("--bc-kl", type=float, default=0.01,
                     help="penalty for drifting away from the copied policy")
+    ap.add_argument("--no-norm-adv", dest="norm_adv", action="store_false",
+                    help="use raw advantages (smaller updates)")
     ap.add_argument("--value-warmup", type=int, default=5,
                     help="iterations that train only the value net")
     ap.add_argument("--save-every", type=int, default=10)
@@ -186,6 +188,9 @@ def main():
         obs, act = np.concatenate(obs), torch.from_numpy(np.concatenate(act))
         logp_old = torch.from_numpy(np.concatenate(logp_old))
         adv, ret = torch.from_numpy(np.concatenate(adv)), torch.from_numpy(np.concatenate(ret))
+        if args.norm_adv:
+            # Rescale so every batch gives a clear push; the value net still learns raw returns.
+            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
         crashes = sum(float((p["rew"] < 0).sum()) for p in parts)
         env_steps += len(act)
 
