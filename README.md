@@ -1,6 +1,6 @@
 # pixels-to-keys
 
-A Chrome Dino agent that acts from raw screen pixels, trained by behavior cloning on my own gameplay. The agent sees 160×40 grayscale frames, presses one key, and has no access to game state.
+A Chrome Dino agent that acts from raw screen pixels, trained by behavior cloning on my own gameplay and then fine-tuned with reinforcement learning. The agent sees 160×40 grayscale frames, presses one key, and has no access to game state.
 
 ![demo](docs/demo.gif)
 
@@ -41,6 +41,33 @@ Inverse-frequency weighting pushes the decision threshold down, so the policy fi
 
 Remaining failures with weight 5: occasional early jumps on wide groups at low speed, and late jumps at high speed. Human data at high speed is scarce (~15% of jumps).
 
+## Reinforcement learning on top
+
+Behavior cloning copies my timing, mistakes included. To fix the remaining crashes, the cloned policy is fine-tuned with PPO ([`rl.py`](pixels_to_keys/rl.py)):
+
+- **Start:** the behavior-cloned weights. A separate value network starts from the same CNN.
+- **Reward:** −1 on a crash, 0 otherwise. Nothing about score or style, only survival.
+- **Courses:** training uses new seeds only (≥ 10000); the 50 evaluation courses are never seen.
+- **Start speed:** each training game starts at a random speed (6–13), so fast sections are practiced as often as slow ones.
+- **Exploration:** actions are sampled at temperature 0.5. At temperature 1 the cloned policy makes random early jumps and crashes within seconds.
+- **Stay close to the demonstrations:** a KL penalty to the cloned policy (coefficient 0.01).
+- **Scale:** 8 browsers in parallel, 300 iterations, 1.2M steps, about 1 hour on a laptop.
+
+![before and after RL](docs/rl_before_after.gif)
+
+Course 9: the cloned policy jumps early on a wide cactus group and lands on it. After RL it waits a few frames longer and clears it.
+
+| Policy | Games lasting 5 min (of 50) | Games lasting 2.5 min (of 50) | Crashes before score 500 |
+|---|---|---|---|
+| Behavior cloning | 26 | 35 | 10 |
+| **+ RL** | **38** | **43** | **1** |
+
+![RL result](docs/rl_result.png)
+
+- RL changed the outcome on 16 of 50 courses. All 16 improved and none got worse (one-sided sign test p < 0.0001).
+- The first run used raw advantages. The policy barely moved (mean KL to the cloned policy ≈ 0.003) and the change was not significant: 3 courses better, 1 worse. Normalizing advantages fixed it (KL ≈ 0.02).
+- The checkpoint after 100 iterations was worse than the cloned policy. By 200 iterations it had recovered, and the 200- and 300-iteration checkpoints play identically on all 50 courses.
+
 ## Usage
 
 ```bash
@@ -48,13 +75,18 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python -m playwright install chromium
 
-# evaluate the included checkpoint on 50 fixed courses
-python -m pixels_to_keys.evaluate --model checkpoints/dino.pt
+# evaluate the included checkpoints on 50 fixed courses
+python -m pixels_to_keys.evaluate --model checkpoints/dino.pt      # behavior cloning
+python -m pixels_to_keys.evaluate --model checkpoints/dino_rl.pt   # + RL
 
 # record your own play, train, evaluate
 python -m pixels_to_keys.record --out data/dino
 python -m pixels_to_keys.train --data data/dino --out checkpoints/dino.pt --jump-weight 5
 python -m pixels_to_keys.evaluate --watch
+
+# fine-tune with PPO (8 parallel browsers), then evaluate
+python -m pixels_to_keys.rl --init checkpoints/dino.pt --workers 8 --iters 300 --out runs/rl
+python -m pixels_to_keys.evaluate --model runs/rl/policy_0300.pt --out runs/rl_eval
 
 # compare human vs agent jump timing
 python -m pixels_to_keys.analyze --human data/dino --agent runs/dino/games --plot runs/jump_timing.png
@@ -69,10 +101,11 @@ pixels_to_keys/
   model.py         CNN policy
   record.py        record human demonstrations
   train.py         behavior cloning
+  rl.py            PPO fine-tuning with parallel browsers
   evaluate.py      fixed-seed evaluation, per-game rollouts and crash clips
   analyze.py       jump-timing analysis (human vs agent)
 game/              Chrome's offline Dino game
-checkpoints/       trained model
+checkpoints/       behavior-cloned and RL-tuned models
 docs/              demo and figures
 ```
 

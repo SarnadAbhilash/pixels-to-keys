@@ -12,6 +12,7 @@ runs/
 notes/
 _archive/
 
-# Checkpoints (only the released one is tracked)
+# Checkpoints (only the released ones are tracked)
 *.pt
 !checkpoints/dino.pt
+!checkpoints/dino_rl.pt
